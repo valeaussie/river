@@ -14,7 +14,7 @@ using namespace std;
 //DEFINITIONS
 
 const double theta = 0.2;
-const float phi = 0.2;
+const double phi = 0.2;
 const int N = 30;
 const int t = 20;
 
@@ -74,8 +74,6 @@ int main() {
 		if (tempx[N - 1] == 1 && tempx[0] == 1) { break; }
 	}
 
-	print_matrix(X);
-
 	//Creating a csv file with the values of X
 	//calling it "river_invasion.csv""
 	ofstream outFile001("./river_invasion.csv");
@@ -100,43 +98,77 @@ int main() {
 	geometric_distribution<int> geo(phi);
 	int trials = geo(generator)+1;
 	cout << "trials " << trials << endl;
-		for (size_t i = 1; i < trials; i++) {
+		for (int i = 0; i < trials-1; i++) {
 			Obs.push_back(obs);
 		}
 	obs[first_invaded] = 1;
 	Obs.push_back(obs);
-	vector < int > tempobs(N, 0);
 	int left{ 0 };
 	int right{ 0 };
-	for (size_t i = trials; i < X.size(); i++) {
+	print_matrix(X);
+	cout << "first invaded " << first_invaded << endl;
+	vector < int > tempobs(N, 0);
+
+	for (size_t i = trials - 1; i < X.size()-1; i++) {
 		for (size_t j = 0; j < N - 1; j++) {
 			if (X[i][j] == 1 && X[i][j + 1] == 0) {
 				right = j;
 			}
+			else if (X[i][N - 1] == 1) { right = N - 1; }
 		}
-		for (size_t j = 1; j < N - 1; j++) {
+		for (size_t j = 1; j < N; j++) {
 			if (X[i][j] == 1 && X[i][j - 1] == 0) {
 				left = j;
 			}
+			else if (X[i][0] == 1) { left = 0; }
 		}
-	}
-	for (size_t i = trials; i < X.size(); i++) {
-		for (size_t j = left; j < right + 1; j++) {
-			if (Obs[i-1][j] == 1 && Obs[i-1][j + 1] == 0) {
-				bernoulli_distribution berd(phi);
-				tempobs[j] = obs[j];
-				tempobs[j + 1] = berd(generator);
+		if (left == right) {
+			Obs.push_back(obs);
+		}
+		else if (right != first_invaded && left == first_invaded) {
+			for (int j = first_invaded; j < right; j++) {
+				if (Obs[i][j] == 1 && Obs[i][j+1] == 0) {
+					bernoulli_distribution berd(phi);
+					tempobs[j] = obs[j];
+					tempobs[j+1] = berd(generator);
+				}
 			}
-			if (Obs[i-1][j] == 1 && Obs[i-1][j - 1] == 0) {
-				bernoulli_distribution berd(phi);
-				tempobs[j] = obs[j];
-				tempobs[j - 1] = berd(generator);
+			for (size_t j = 0; j < N; j++) {
+				obs[j] = tempobs[j];
 			}
+			Obs.push_back(tempobs);
 		}
-		for (size_t j = 0; j < N; j++) {
-			obs[j] = tempobs[j];
+		else if (left != first_invaded && right == first_invaded) {
+			for (int j = left; j < first_invaded + 1; j++) {
+				if (Obs[i][j] == 0 && Obs[i][j+1] == 1) {
+					bernoulli_distribution berd(phi);
+					tempobs[j + 1] = obs[j + 1];
+					tempobs[j] = berd(generator);
+				}
+			}
+			for (size_t j = 0; j < N; j++) {
+				obs[j] = tempobs[j];
+			}
+			Obs.push_back(tempobs);
 		}
-	Obs.push_back(tempobs);
+		else {
+			for (int j = left; j < right; j++) {
+				if (Obs[i][j] == 0 && Obs[i][j + 1] == 1) {
+					bernoulli_distribution berd(phi);
+					tempobs[j + 1] = obs[j + 1];
+					tempobs[j] = berd(generator);
+				}
+				if (Obs[i][j] == 1 && Obs[i][j + 1] == 0) {
+					bernoulli_distribution berd(phi);
+					tempobs[j] = obs[j];
+					tempobs[j + 1] = berd(generator);
+				}
+			}
+			for (size_t j = 0; j < N; j++) {
+				obs[j] = tempobs[j];
+			}
+			Obs.push_back(tempobs);
+		}
 	}
 
 	print_matrix(Obs);
@@ -147,11 +179,11 @@ int main() {
 	//calling it "river_observations.csv""
 	ofstream outFile002("./river_observations.csv");
 	outFile002 << endl;
-	for (size_t lin = 0; lin < X.size(); lin++) {
+	for (size_t lin = 0; lin < Obs.size(); lin++) {
 		for (size_t col = 0; col < N - 1; col++) {
-			outFile002 << X[lin][col] << ",";
+			outFile002 << Obs[lin][col] << ",";
 		}
-		outFile002 << X[lin][N - 1];
+		outFile002 << Obs[lin][N - 1];
 		outFile002 << endl;
 	}
 	outFile002.close();
