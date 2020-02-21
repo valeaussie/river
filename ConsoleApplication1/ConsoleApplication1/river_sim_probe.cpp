@@ -7,20 +7,23 @@
 #include <map>
 #include <algorithm>
 #include <math.h>
-//#include "SIS_river.h"
+#include "SIS_river.h"
 
 using namespace std;
 
 //DEFINITIONS
 
-const double theta = 0.2;
-const double phi = 0.2;
+const double theta = 0.8;
+const double phi = 0.8;
 const int N = 30;
 const int t = 20;
 
+vector < vector < int > > X;
+vector < vector < int > > Obs;
 
-void print_matrix(vector < vector < int > > m);
-void print_vector(vector < int > V);
+
+//void print_matrix(vector < vector < int > > m);
+//void print_vector(vector < int > v);
 
 
 /* this is the code to simulate the river model and the matix of the observations.
@@ -33,14 +36,13 @@ the cell is simulated as not observed (1 for invaded 0 for not invaded). */
 
 
 
-int main() {
+int simprobe() {
 
 	random_device rd;
 	mt19937 generator(rd());
 
 	//Sampling from a bernoulli distribution simulate the invasion model. Put the values in a matrix "X"
 
-	vector < vector < int > > X;
 
 	vector < int > x;
 	for (size_t j = 0; j < N; j++) {
@@ -90,7 +92,6 @@ int main() {
 	//Sampling from a bernoulli distribution with probabiltity phi simulate the invasion model. 
 	//Put the values in a matrix "Obs".
 
-	vector < vector < int > > Obs;
 	vector < int > obs;
 	for (size_t j = 0; j < N; j++) {
 		obs.push_back(0);
@@ -105,10 +106,10 @@ int main() {
 	Obs.push_back(obs);
 	int left{ 0 };
 	int right{ 0 };
-	print_matrix(X);
-	cout << "first invaded " << first_invaded << endl;
-	vector < int > tempobs(N, 0);
 
+	cout << "first invaded " << first_invaded << endl;
+
+	vector < int > tempobs(N, 0);
 	for (size_t i = trials - 1; i < X.size()-1; i++) {
 		for (size_t j = 0; j < N - 1; j++) {
 			if (X[i][j] == 1 && X[i][j + 1] == 0) {
@@ -122,46 +123,31 @@ int main() {
 			}
 			else if (X[i][0] == 1) { left = 0; }
 		}
+		for (size_t j = 0; j < N; j++) {
+			tempobs[j] = obs[j];
+		}
 		if (left == right) {
 			Obs.push_back(obs);
-		}
-		else if (right != first_invaded && left == first_invaded) {
-			for (int j = first_invaded; j < right; j++) {
-				if (Obs[i][j] == 1 && Obs[i][j+1] == 0) {
-					bernoulli_distribution berd(phi);
-					tempobs[j] = obs[j];
-					tempobs[j+1] = berd(generator);
-				}
-			}
-			for (size_t j = 0; j < N; j++) {
-				obs[j] = tempobs[j];
-			}
-			Obs.push_back(tempobs);
-		}
-		else if (left != first_invaded && right == first_invaded) {
-			for (int j = left; j < first_invaded + 1; j++) {
-				if (Obs[i][j] == 0 && Obs[i][j+1] == 1) {
-					bernoulli_distribution berd(phi);
-					tempobs[j + 1] = obs[j + 1];
-					tempobs[j] = berd(generator);
-				}
-			}
-			for (size_t j = 0; j < N; j++) {
-				obs[j] = tempobs[j];
-			}
-			Obs.push_back(tempobs);
 		}
 		else {
 			for (int j = left; j < right; j++) {
 				if (Obs[i][j] == 0 && Obs[i][j + 1] == 1) {
 					bernoulli_distribution berd(phi);
-					tempobs[j + 1] = obs[j + 1];
-					tempobs[j] = berd(generator);
+					int l = berd(generator);
+					if (l == 1) {
+						tempobs[j + 1] = obs[j + 1];
+						tempobs[j] = l;
+						obs[j] = l;
+					}
 				}
 				if (Obs[i][j] == 1 && Obs[i][j + 1] == 0) {
 					bernoulli_distribution berd(phi);
-					tempobs[j] = obs[j];
-					tempobs[j + 1] = berd(generator);
+					int l = berd(generator);
+					if (l == 1) {
+						tempobs[j] = obs[j];
+						tempobs[j + 1] = l;
+						obs[j + 1] = l;
+					}
 				}
 			}
 			for (size_t j = 0; j < N; j++) {
@@ -171,7 +157,7 @@ int main() {
 		}
 	}
 
-	print_matrix(Obs);
+	//print_matrix(Obs);
 	cout << "size of X " << X.size() << endl;
 	cout << "size of Obs " << Obs.size() << endl;
 
@@ -189,19 +175,4 @@ int main() {
 	outFile002.close();
 
 	return 0;
-}
-
-
-//this function prints a vector of integers
-void print_vector(vector < int > v) {
-	for (const int x : v) cout << x << ' ';
-	cout << endl;
-}
-
-//this function prints a matrix of integers
-void print_matrix(vector < vector < int > > m) {
-	for (const vector < int > v : m) {
-		for (int x : v) cout << x << ' ';
-		cout << endl;
-	}
 }

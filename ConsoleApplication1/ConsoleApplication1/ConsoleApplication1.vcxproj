@@ -153,6 +153,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="river_sim_probe.cpp" />
+    <ClCompile Include="river_SIS_probe.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SIS_river.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -6,15 +6,13 @@ using namespace std;
 //DEFINITIONS
 
 extern const double theta;
-extern const float phi;
-extern const double N;
+extern const double phi;
+extern const int N;
 
-extern vector < vector < size_t > > inv;
-extern vector < vector < size_t > > obs;
+extern vector < vector < int > > X;
+extern vector < vector < int > > Obs;
 
 int simprobe();
-int simpopulation();
-
 
 
 #endif

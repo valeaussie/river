@@ -18,5 +18,13 @@
     <ClCompile Include="river_sim_probe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="river_SIS_probe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SIS_river.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
