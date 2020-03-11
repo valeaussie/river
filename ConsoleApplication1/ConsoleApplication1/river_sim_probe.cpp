@@ -13,13 +13,15 @@ using namespace std;
 
 //DEFINITIONS
 
-const double theta = 0.8;
-const double phi = 0.8;
-const int N = 30;
-const int t = 20;
+const double theta = 0.3;
+const double phi = 0.3;
+const int N = 10;
 
 vector < vector < int > > X;
 vector < vector < int > > Obs;
+size_t trials{ 0 };
+int first_observed{ 0 };
+
 
 
 //void print_matrix(vector < vector < int > > m);
@@ -41,18 +43,16 @@ int simprobe() {
 	random_device rd;
 	mt19937 generator(rd());
 
-	//Sampling from a bernoulli distribution simulate the invasion model. Put the values in a matrix "X"
+	//sampling from a bernoulli distribution simulate the invasion model. Put the values in a matrix "X"
 
-
-	vector < int > x;
-	for (size_t j = 0; j < N; j++) {
-		x.push_back(0);
-	}
+	//simulate the first invaded cell 
+	vector < int > x(N, 0);
 	int end_of_range = N - 1;
 	int first_invaded = rd() % end_of_range;
 	x[first_invaded] = 1;
 	X.push_back(x);
 
+	//simulate invasion for all other cells
 	vector < int > tempx(N, 0);
 	for (size_t i = 0; i < X.size(); i++) {
 		for (size_t j = 0; j < N - 1; j++) {
@@ -89,28 +89,39 @@ int simprobe() {
 	}
 	outFile001.close();
 
-	//Sampling from a bernoulli distribution with probabiltity phi simulate the invasion model. 
+	//Sampling from a bernoulli distribution with probabiltity phi simulate the observations model. 
 	//Put the values in a matrix "Obs".
-
-	vector < int > obs;
-	for (size_t j = 0; j < N; j++) {
-		obs.push_back(0);
-	}
+	vector < int > obs(N, 0);
+	//calcualte when the first observation will happen with a geometric distribution
+	//note that we can observe only in the range where there invasion is
+	vector < int > range;
 	geometric_distribution<int> geo(phi);
-	int trials = geo(generator)+1;
-	cout << "trials " << trials << endl;
-		for (int i = 0; i < trials-1; i++) {
-			Obs.push_back(obs);
+	do {
+		trials = geo(generator) + 1;
+	} while (trials > X.size());
+	for (int i = 0; i < N; i++) {
+		if (X[trials - 1][i] == 1) {
+			range.push_back(i);
 		}
-	obs[first_invaded] = 1;
-	Obs.push_back(obs);
+	}
+	for (size_t i = 0; i < trials - 1; i++) {
+		Obs.push_back(obs);
+	}
+	if (range[range.size() - 1] == range[0]) {
+		first_observed = range[0];
+	}
+	else {
+		first_observed = rd() % (range[range.size() - 1] - range[0]) + range[0];
+	}
+	obs[first_observed] = 1;
+	//Obs.push_back(obs);
+	//simulate now the rest of the observations
+	
+	//calculate left and right which are the first and last invaded cells
 	int left{ 0 };
 	int right{ 0 };
-
-	cout << "first invaded " << first_invaded << endl;
-
 	vector < int > tempobs(N, 0);
-	for (size_t i = trials - 1; i < X.size()-1; i++) {
+	for (size_t i = trials - 1; i < X.size(); i++) {
 		for (size_t j = 0; j < N - 1; j++) {
 			if (X[i][j] == 1 && X[i][j + 1] == 0) {
 				right = j;
@@ -123,6 +134,7 @@ int simprobe() {
 			}
 			else if (X[i][0] == 1) { left = 0; }
 		}
+		//sample between left and right
 		for (size_t j = 0; j < N; j++) {
 			tempobs[j] = obs[j];
 		}
@@ -131,22 +143,32 @@ int simprobe() {
 		}
 		else {
 			for (int j = left; j < right; j++) {
-				if (Obs[i][j] == 0 && Obs[i][j + 1] == 1) {
-					bernoulli_distribution berd(phi);
-					int l = berd(generator);
-					if (l == 1) {
-						tempobs[j + 1] = obs[j + 1];
-						tempobs[j] = l;
-						obs[j] = l;
+				int last_inv_left{ 0 };
+				if (obs[j] == 0 && obs[j + 1] == 1) {
+					last_inv_left = j + 1;
+					for (int j = last_inv_left; j >= left; j--) {
+						bernoulli_distribution berd(phi);
+						int l = berd(generator);
+						if (l == 1) {
+							tempobs[j + 1] = obs[j + 1];
+							tempobs[j] = l;
+							obs[j] = l;
+						}
+						else { break; }
 					}
 				}
-				if (Obs[i][j] == 1 && Obs[i][j + 1] == 0) {
-					bernoulli_distribution berd(phi);
-					int l = berd(generator);
-					if (l == 1) {
-						tempobs[j] = obs[j];
-						tempobs[j + 1] = l;
-						obs[j + 1] = l;
+				int last_inv_right{ 0 };
+				if (obs[j] == 1 && obs[j + 1] == 0) {
+					last_inv_right = j;
+					for (int j = last_inv_right; j < right; j++) {
+						bernoulli_distribution berd(phi);
+						int l = berd(generator);
+						if (l == 1) {
+							tempobs[j] = obs[j];
+							tempobs[j + 1] = l;
+							obs[j + 1] = l;
+						}
+						else { break; }
 					}
 				}
 			}
@@ -156,10 +178,6 @@ int simprobe() {
 			Obs.push_back(tempobs);
 		}
 	}
-
-	//print_matrix(Obs);
-	cout << "size of X " << X.size() << endl;
-	cout << "size of Obs " << Obs.size() << endl;
 
 	//Creating a csv file with the values of Obs
 	//calling it "river_observations.csv""

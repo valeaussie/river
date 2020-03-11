@@ -7,6 +7,7 @@
 #include <math.h>
 #include "SIS_river.h"
 
+
 using namespace std;
 
 void print_matrix(vector < vector < int > > m);
@@ -14,11 +15,11 @@ void print_vector(vector < int > v);
 
 
 //This is the code for the method:
-//Firstly I calculate the lower triangular 3-dimentional matrices called for the sampled events
-//and for the samples with substitutions for every particle.
-//I then calculate the lower triangular 3-dimensional matrices for the sampled observations
+//Firstly I calculate the 3-dimentional matrix called for the sampled events
+//making the substitutions for every particle.
+//I then calculate the 3-dimensional matrix for the sampled observations
 //and for the sampled observations with substitutions
-//Finally I calculate the weights.
+//Finally I calculate the weights and resample.
 
 int main() {
 
@@ -27,137 +28,414 @@ int main() {
 
 	simprobe();
 
+	//DEFINITIONS
+
+	//number of particles
+	int n = 1;
+	//define the container for the sampled events and the sampled observations
+	vector < vector < vector < int > > > sample;
+	int m = X.size();
+	vector < vector < vector < int > > > sam_obs(n, vector < vector < int > >(m, vector < int >(N)));
+	//define the container for the new sampled events and the new sampled observations
+	vector < vector < vector < int > > > new_sample;
+	vector < vector < vector < int > > > resampled;
+	//define the containter for the unnormalised weights
+	vector < vector < vector < int > > > un_weights;
+	//define the container for the normalised weights
+	vector < vector < vector < int > > > weights;
+	//define the number of particles
+
 	print_matrix(X);
 	print_matrix(Obs);
 
-
-	
-
-
-	/*
-	//DEFINITIONS
-
-	//define the container for the sampled events and the sampled observations (0s and 1s)
-	vector < vector < vector < double > > > sample;
-	vector < vector < vector < size_t > > > sam_obs;
-	//define the container for the new sampled events and the new sampled observations (0s and 1s)
-	vector < vector < vector < size_t > > > new_sam_obs;
-	vector < vector < vector < double > > > new_sample;
-	vector < vector < vector < double > > > resampled;
-	//define the containter for the unnormalised weights
-	vector < vector < vector < double > > > un_weights;
-	//define the container for the normalised weights
-	vector < vector < vector < double > > > weights;
-	//define the number of particles
-	double n = 1000;
-
-	//Sampling from a normal distribution with mean 0
-	//and variance sigma^2/(1-phi^2) for every particle
-	//and store this in a vector clalled "vector_y0"
-	//This vector will be used as the starting point to sample all other vectors of events
-	//that will populate the matrix "sample"
-	vector < double > vector_y0;
-	for (unsigned j = 0; j < n; j++) {
-		normal_distribution < double > normalDist(0, sigmasq / (1 - phi * phi));
-		vector_y0.push_back(normalDist(generator));
+	//simulate the first invaded cell for all particles
+	//notice that there is a limitation on which cell can be infected
+	//which will depend on when the first observation happened and
+	//on which cell was first invaded
+	vector < vector < int > > samplem;
+	vector < int > first_sim_vect;
+	int start_of_range = first_observed - (trials - 1);
+	int end_of_range = first_observed + (trials + 1);
+	if (start_of_range < 0) { start_of_range = 0; }
+	if (end_of_range > N - 1) { end_of_range = N - 1; }
+	for (int i = 0; i < n; i++) {
+		vector < int > samplev(N, 0);
+		int first_simulated = start_of_range + rd() % (end_of_range - start_of_range-1);
+		samplev[first_simulated] = 1;
+		samplem.push_back(samplev);
+		first_sim_vect.push_back(first_simulated);
 	}
-
-	//Sampling for every particle from a normal distribution centred in the previous event times phi
-	//and with variance sigma^2, filling the container "sample".
-	//Making the substitiution every time I have an observation in real life,
+	//Sampling the invasion for every particle from a bernoulli distribution
+	//with probability theta, filling the container "sample".
+	//Making a substitiution every time I have an observation in real life,
 	//filling the container for the new updated events "new_sample".
-	for (size_t j = 0; j < n; j++) {
-		vector < vector < double > > matrix_sample;
-		vector < vector < double > > matrix_new_sample;
-		vector < double > row_matrix_sample;
-		vector < double > row_matrix_new_sample;
-		double y;
-		y = vector_y0[j];
-		row_matrix_sample.push_back(y);
-		if (obs[0][0] == 1) {
-			row_matrix_new_sample.push_back(X[0]);
-		}
-		else { row_matrix_new_sample.push_back(y); }
-		matrix_sample.push_back(row_matrix_sample);
-		matrix_new_sample.push_back(row_matrix_new_sample);
-		for (size_t i = 1; i < N; i++) {
-			vector < size_t > row_obs;
-			row_obs = obs[i];
-			normal_distribution < double > normalDist(phi * row_matrix_new_sample[i - 1], sigmasq);
-			double gen = normalDist(generator);
-			row_matrix_new_sample.push_back(gen);
-			row_matrix_sample.push_back(gen);
-			for (size_t k = 0; k < i; k++) {
-				if (row_obs[k] == 1) {
-					row_matrix_sample[k] = row_matrix_new_sample[k];
+	for (int j = 0; j < n; j++) {
+		vector < vector < int > > matrix_sample;
+		matrix_sample.push_back(samplem[j]);
+		vector < vector < int > > matrix_new_sample;
+		matrix_new_sample.push_back(samplem[j]);
+		vector < int > row_matrix_sample(N, 0);
+		row_matrix_sample[first_sim_vect[j]] = 1;
+		vector < int > row_matrix_new_sample(N, 0);
+		row_matrix_new_sample[first_sim_vect[j]] = 1;
+		vector < int > temp(N, 0);
+		//make all the simulations for all the times before we have an observations
+		for (size_t i = 0; i < trials-1; i++) {
+			for (int k = 0; k < N - 1; k++) {
+				if (row_matrix_sample[k] == 1 && row_matrix_sample[k + 1] == 0) {
+					bernoulli_distribution berd(theta);
+					temp[k] = row_matrix_sample[k];
+					if (temp[N - 1] != 1) {
+						temp[k + 1] = berd(generator);
+					}
+					else { temp[k + 1] = 1; }
 				}
 			}
-			for (size_t k = 0; k < i + 1; k++) {
-				if (row_obs[k] == 1) {
-					row_matrix_new_sample[k] = X[k];
+			for (int k = 1; k < N; k++) {
+				if (row_matrix_sample[k] == 1 && row_matrix_sample[k - 1] == 0) {
+					bernoulli_distribution berd(theta);
+					temp[k] = row_matrix_sample[k];
+					temp[k - 1] = berd(generator);
+					if (temp[0] == 1) { break; }
 				}
 			}
-			matrix_sample.push_back(row_matrix_sample);
-			matrix_new_sample.push_back(row_matrix_new_sample);
+			for (int k = 0; k < N - 1; k++) {
+				row_matrix_sample[k] = temp[k];
+				row_matrix_new_sample[k] = temp[k];
+			}
+			matrix_sample.push_back(temp);
+			matrix_new_sample.push_back(temp);
 		}
-		row_matrix_sample.clear();
-		row_matrix_new_sample.clear();
+		//at the time of the first observation make the substitutions for the first
+		//observation and for the previous times if needed
+		for (int k = 0; k < N; k++) {
+			if (Obs[trials - 1][k] == 1)
+			{
+				matrix_new_sample[trials - 1][k] = 1;
+			}
+		}
+		if (first_observed != 0) {
+			if (first_observed <= (trials - 1)){
+				for (size_t i = 0; i < first_observed; i++) {
+					for (size_t k = 0; k < first_observed - i +1; k++) {
+						if (matrix_new_sample[trials - 1 - i][k] == 1) {
+							if (matrix_new_sample[trials - 1 - i][k + 1] == 0) {
+								matrix_new_sample[trials - 1 - i][k + 1] = 1;
+							}
+						}
+					}
+				}
+			}
+			else {
+				for (size_t i = 0; i < trials - 1; i++) {
+					for (size_t k = 0; k < trials - i; k++) {
+						if (matrix_new_sample[trials - 1 - i][k] == 1) {
+							if (matrix_new_sample[trials - 1 - i][k + 1] == 0) {
+								matrix_new_sample[trials - 1 - i][k + 1] = 1;
+							}
+						}
+					}
+				}
+			}
+		}
+		if (first_observed != N) {
+			for (size_t i = 0; i < trials - 1; i++) {
+				for (size_t k = N - 1; k >= first_observed + 1 + i; k--) {
+					if (matrix_new_sample[trials - 1 - i][k] == 1) {
+						if (matrix_new_sample[trials - 1 - i][k - 1] == 0) {
+							matrix_new_sample[trials - 1 - i][k - 1] = 1;
+						}
+					}
+				}
+			}
+		}
+		//for all the subsequent times sample as usual
+		//then make a correction
+		vector < int > temp2(N, 0);
+		vector < int > temp3(N, 0);
+		for (int k = 0; k < N; k++){
+			temp2[k] = matrix_new_sample[trials - 1][k];
+			temp3[k] = matrix_new_sample[trials - 1][k];
+		}
+		for (size_t i = trials; i < X.size(); i++) {
+			if (first_observed != N) {
+				for (int k = 0; k < N - 1; k++) {
+					if (matrix_sample[i - 1][k] == 1 && matrix_sample[i - 1][k + 1] == 0) {
+						bernoulli_distribution berd(theta);
+						temp2[k] = matrix_sample[i - 1][k];
+						temp2[k + 1] = berd(generator);
+					}
+					if (Obs[i][k + 1] == 1) {
+						temp3[k + 1] = 1;
+					}
+					else {
+						temp3[k + 1] = temp2[k + 1];
+					}
+				}
+			}
+			if (first_observed != 0) {
+				for (int k = 1; k < N; k++) {
+					if (matrix_sample[i - 1][k] == 1 && matrix_sample[i - 1][k - 1] == 0) {
+						bernoulli_distribution berd(theta);
+						temp2[k] = matrix_sample[i - 1][k];
+						temp2[k - 1] = berd(generator);
+					}
+					if (Obs[i][k - 1] == 1) {
+						temp3[k - 1] = 1;
+					}
+					else {
+						temp3[k - 1] = temp2[k - 1];
+					}
+				}
+			}
+			matrix_sample.push_back(temp2);
+			matrix_new_sample.push_back(temp3);
+		}
 		sample.push_back(matrix_sample);
 		new_sample.push_back(matrix_new_sample);
-		matrix_sample.clear();
-		matrix_new_sample.clear();
+	}
+	//simulate the first observation for each particle with a geometric distribution
+    //note that we can observe only in the range where the invasion is
+	//if the first observation in real life happens after or at the same time
+	//as the simulated first observation, do nothing
+	//otherwise simulate observations up to the first observation in real life
+
+	//simulate first observation
+	vector < int > vec_sim_trials;
+	for (int j = 0; j < n; j++) {
+		vector < int > obs(N, 0);
+		vector < int > range;
+		int sim_first_obs{ 0 };
+		geometric_distribution < int > geo(phi);
+		int sim_trials{ 0 };
+		do {
+		sim_trials = geo(generator) + 1;
+		} while (sim_trials > X.size());
+		vec_sim_trials.push_back(sim_trials);
+		if (sim_trials < trials) {
+			for (int i = 0; i < N; i++) {
+				if (sample[j][sim_trials - 1][i] == 1) {
+					range.push_back(i);
+				}
+			}
+			if (range[range.size() - 1] == range[0]) {
+				sim_first_obs = range[0];
+			}
+			else {
+				sim_first_obs = rd() % (range[range.size() - 1] - range[0]) + range[0];
+			}
+			sam_obs[j][sim_trials - 1][sim_first_obs] = 1;
+		}
 	}
 
-	//Sampling for every particle from a bernoulli distribution with probability p
-	//filling the container of the sampled observations "sam_obs".
-	//Substituting a0 with a 1 every time I have an observation in real life,
-	//filling the matrix of updated sampled observations "new_sam_obs"
-	for (size_t j = 0; j < n; j++) {
-		vector < vector < size_t > > matrix_obs;
-		vector < vector < size_t > > matrix_new_obs;
-		vector < size_t > row_matrix_obs;
-		vector < size_t > row_matrix_new_obs;
-		for (size_t i = 0; i < N; i++) {
-			vector < size_t > row_obs;
-			row_obs = obs[i];
-			bernoulli_distribution BerDist(p);
-			double gen = BerDist(generator);
-			row_matrix_obs.push_back(0);
-			row_matrix_new_obs.push_back(0);
-			for (size_t k = 0; k < i + 1; k++) {
-				if (row_obs[k] == 1) {
-					row_matrix_new_obs[k] = 1;
+	//simulate the rest up to the first observation in real life
+	for (int k = 0; k < n; k++) {
+		//calculate left and right which are the first and last invaded cells
+		if (vec_sim_trials[k] < trials) {
+			for (size_t i = vec_sim_trials[k] - 1; i < trials - 1; i++) {
+				int left{ 0 };
+				int right{ 0 };
+				for (size_t j = 0; j < N - 1; j++) {
+					if (new_sample[k][i + 1][j] == 1 && new_sample[k][i + 1][j + 1] == 0) {
+						right = j;
+					}
+					else if (new_sample[k][i + 1][N - 1] == 1) { right = N - 1; }
 				}
-				else if (row_obs[k] == 0) {
-					row_matrix_obs[k] = gen;
+				for (size_t j = 1; j < N; j++) {
+					if (new_sample[k][i + 1][j] == 1 && new_sample[k][i + 1][j - 1] == 0) {
+						left = j;
+					}
+					else if (new_sample[k][i + 1][0] == 1) { left = 0; }
+				}
+				//sample between left and right
+				for (int j = 0; j < N; j++) {
+					sam_obs[k][i + 1][j] = sam_obs[k][i][j];
+				}
+				if (left == right) {}
+				else {
+					for (int j = left; j < right; j++) {
+						int last_inv_left{ 0 };
+						if (sam_obs[k][i][j] == 0 && sam_obs[k][i][j + 1] == 1) {
+							last_inv_left = j + 1;
+							for (int j = last_inv_left; j >= left; j--) {
+								bernoulli_distribution berd(phi);
+								int l = berd(generator);
+								if (l == 1) {
+									sam_obs[k][i + 1][j] = l;
+								}
+								else { break; }
+							}
+						}
+						int last_inv_right{ 0 };
+						if (sam_obs[k][i][j] == 1 && sam_obs[k][i][j + 1] == 0) {
+							last_inv_right = j;
+							for (int j = last_inv_right; j < right; j++) {
+								bernoulli_distribution berd(phi);
+								int l = berd(generator);
+								if (l == 1) {
+									sam_obs[k][i + 1][j + 1] = l;
+								}
+								else { break; }
+							}
+						}
+					}
 				}
 			}
-			for (size_t k = 0; k < i + 1; k++) {
-				if (row_obs[k] == 0 && row_matrix_obs[k] == 1) {
-					row_matrix_new_obs[k] = 0;
-				}
-				else if (row_obs[k] == 0 && row_matrix_obs[k] == 0) {
-					row_matrix_new_obs[k] = 0;
-				}
-			}
-			matrix_obs.push_back(row_matrix_obs);
-			matrix_new_obs.push_back(row_matrix_new_obs);
 		}
-		for (size_t i = 0; i < N - 1; i++) {
-			for (size_t k = 0; k < i + 1; k++) {
-				if (matrix_new_obs[i][k] == 1) {
-					matrix_obs[i + 1][k] = matrix_new_obs[i][k];
+		else {
+			for (int j = 0; j < vec_sim_trials[k]; j++) {
+				for (int i = 0; i < N; i++) {
+					sam_obs[k][j][i] = Obs[j][i];
 				}
 			}
 		}
-		row_matrix_obs.clear();
-		row_matrix_new_obs.clear();
-		sam_obs.push_back(matrix_obs);
-		new_sam_obs.push_back(matrix_new_obs);
-		matrix_obs.clear();
-		matrix_new_obs.clear();
 	}
 
+
+	//Sampling the observations for every particle from a bernoulli distribution
+	//with probability phi, filling the container "sam_obs".
+	//Making a substitiution every time I have an observation in real life,
+	//the matrix for the corrected observations is equivalent to the real life observation matrix "Obs".
+	if (trials == 1) {
+		for (int j = 0; j < n; j++) {
+			for (int i = 0; i < N; i++) {
+				sam_obs[j][trials - 1][i] = Obs[trials - 1][i];
+			}
+		}
+	}
+	vector < int > temp(N, 0);
+	for (int j = 0; j < N; j++) {
+		temp[j] = Obs[trials - 1][j];
+	}
+	for (int k = 0; k < n; k++) {
+		//from the time of the first observation sample next step
+		//then make the substitutions
+		if (vec_sim_trials[k] < trials) {
+			for (int j = 0; j < N; j++) {
+				sam_obs[k][trials - 1][j] = Obs[trials - 1][j];
+			}
+			for (int i = trials - 1; i < X.size(); i++) {
+				//calculate left and right which are the first and last invaded cells
+				int left{ 0 };
+				int right{ 0 };
+				for (size_t j = 0; j < N - 1; j++) {
+					if (new_sample[k][i][j] == 1 && new_sample[k][i][j + 1] == 0) {
+						right = j;
+					}
+					else if (new_sample[k][i][N - 1] == 1) { right = N - 1; }
+				}
+				for (size_t j = 1; j < N; j++) {
+					if (new_sample[k][i][j] == 1 && new_sample[k][i][j - 1] == 0) {
+						left = j;
+					}
+					else if (new_sample[k][i][0] == 1) { left = 0; }
+				}
+				//sample between left and right
+				if (left == right) {
+					for (int j = 0; j < N; j++) {
+						sam_obs[k][i][j] = temp[j];
+					}
+				}
+				else {
+					for (int j = 0; j < N; j++) {
+						temp[j] = Obs[i][j];
+					}
+					for (int j = left; j < right; j++) {
+						int last_inv_left{ 0 };
+						if (Obs[i][j] == 0 && Obs[i][j + 1] == 1) {
+							last_inv_left = j + 1;
+							for (int j = last_inv_left; j >= left; j--) {
+								bernoulli_distribution berd(phi);
+								int l = berd(generator);
+								if (l == 1) {
+									temp[j] = l;
+								}
+								else { break; }
+							}
+						}
+						int last_inv_right{ 0 };
+						if (Obs[i][j] == 1 && Obs[i][j + 1] == 0) {
+							last_inv_right = j;
+							for (int j = last_inv_right; j < right; j++) {
+								bernoulli_distribution berd(phi);
+								int l = berd(generator);
+								if (l == 1) {
+									temp[j + 1] = l;
+								}
+								else { break; }
+							}
+						}
+					}
+					for (int j = 0; j < N; j++) {
+						sam_obs[k][i][j] = temp[j];
+					}
+				}
+			}
+		}
+		else {
+			for (int j = 0; j < N; j++) {
+				temp[j] = Obs[vec_sim_trials[k] - 1][j];
+			}
+			for (int i = vec_sim_trials[k] - 1; i < X.size(); i++) {
+				//calculate left and right which are the first and last invaded cells
+				int left{ 0 };
+				int right{ 0 };
+				for (size_t j = 0; j < N - 1; j++) {
+					if (new_sample[k][i][j] == 1 && new_sample[k][i][j + 1] == 0) {
+						right = j;
+					}
+					else if (new_sample[k][i][N - 1] == 1) { right = N - 1; }
+				}
+				for (size_t j = 1; j < N; j++) {
+					if (new_sample[k][i][j] == 1 && new_sample[k][i][j - 1] == 0) {
+						left = j;
+					}
+					else if (new_sample[k][i][0] == 1) { left = 0; }
+				}
+				//sample between left and right
+				for (int j = 0; j < N; j++) {
+					temp[j] = Obs[i][j];
+				}
+				for (int j = left; j < right; j++) {
+					sam_obs[k][i][j] = temp[j];
+					temp[j] = Obs[i][j];
+					int last_inv_left{ 0 };
+					if (Obs[i][j] == 0 && Obs[i][j + 1] == 1) {
+						last_inv_left = j + 1;
+						for (int j = last_inv_left; j >= left; j--) {
+							bernoulli_distribution berd(phi);
+							int l = berd(generator);
+							if (l == 1) {
+								temp[j] = l;
+							}
+							else { break; }
+						}
+					}
+					int last_inv_right{ 0 };
+					if (Obs[i][j] == 1 && Obs[i][j + 1] == 0) {
+						last_inv_right = j;
+						for (int j = last_inv_right; j < right; j++) {
+							bernoulli_distribution berd(phi);
+							int l = berd(generator);
+							if (l == 1) {
+								temp[j + 1] = l;
+							}
+							else { break; }
+						}
+					}
+				}
+				for (int j = 0; j < N; j++) {
+					sam_obs[k][i][j] = temp[j];
+				}
+			}
+		}
+		cout << "new sample[j]" << endl;
+		print_matrix(new_sample[k]);
+		cout << "sam_obs[j]" << endl;
+		print_matrix(sam_obs[k]);
+	}
+
+	/*
 	//Finding the unnormalised weights (using log then exponentiating)
 	//filling the container "un_weights".
 	//This is an important part of the code, should be always sure it is correct.
