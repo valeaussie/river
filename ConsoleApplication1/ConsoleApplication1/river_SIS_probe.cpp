@@ -10,16 +10,23 @@
 
 using namespace std;
 
-void print_matrix(vector < vector < int > > m);
-void print_vector(vector < int > v);
-
-
 //This is the code for the method:
 //Firstly I calculate the 3-dimentional matrix called for the sampled events
 //making the substitutions for every particle.
 //I then calculate the 3-dimensional matrix for the sampled observations
 //and for the sampled observations with substitutions
 //Finally I calculate the weights and resample.
+
+//FUNCTIONS
+
+void print_matrix(vector < vector < int > > m);
+void print_vector(vector < int > v);
+int left(vector < int > v);
+int right(vector < int > v);
+int function_h(int k, int l, int L);
+//bool is_zero(vector < int > v);
+
+
 
 int main() {
 
@@ -31,13 +38,15 @@ int main() {
 	//DEFINITIONS
 
 	//number of particles
-	int n = 1;
-	//define the container for the sampled events and the sampled observations
-	vector < vector < vector < int > > > sample;
+	int n = 4;
 	int m = X.size();
-	vector < vector < vector < int > > > sam_obs(n, vector < vector < int > >(m, vector < int >(N)));
-	//define the container for the new sampled events and the new sampled observations
+	//define the container for the samples 
+	vector < vector < vector < int > > > sample;
+	//define the container for the corrected samples
 	vector < vector < vector < int > > > new_sample;
+	//define the empty matrix for the sampled observations
+	vector < vector < vector < int > > > sam_obs(n, vector < vector < int > >(m, vector < int >(N)));
+	//define the container for the resampling
 	vector < vector < vector < int > > > resampled;
 	//define the containter for the unnormalised weights
 	vector < vector < vector < int > > > un_weights;
@@ -47,25 +56,26 @@ int main() {
 
 	print_matrix(X);
 	print_matrix(Obs);
-
+	
 	//simulate the first invaded cell for all particles
-	//notice that there is a limitation on which cell can be infected
-	//which will depend on when the first observation happened and
-	//on which cell was first invaded
 	vector < vector < int > > samplem;
 	vector < int > first_sim_vect;
-	int start_of_range = first_observed - (trials - 1);
-	int end_of_range = first_observed + (trials + 1);
-	if (start_of_range < 0) { start_of_range = 0; }
-	if (end_of_range > N - 1) { end_of_range = N - 1; }
-	for (int i = 0; i < n; i++) {
+	//for each particle, define the cells where there is an invasion 
+	//and randomly select the first observation in that range
+	//int end_of_range = right_first_observed + (trials - 1);
+	//int start_of_range = left_first_observed - (trials - 1);
+	//if (start_of_range < 0) { start_of_range = 0; }
+	//else if (end_of_range > N - 1) { end_of_range = N - 1; }
+	//else {}
+	for (int j = 0; j < n; j++) {
 		vector < int > samplev(N, 0);
-		int first_simulated = start_of_range + rd() % (end_of_range - start_of_range-1);
+		uniform_int_distribution<> unif(0, N - 1);
+		int first_simulated = unif(generator);
 		samplev[first_simulated] = 1;
 		samplem.push_back(samplev);
 		first_sim_vect.push_back(first_simulated);
 	}
-	//Sampling the invasion for every particle from a bernoulli distribution
+ 	//Sampling the invasion for every particle from a bernoulli distribution
 	//with probability theta, filling the container "sample".
 	//Making a substitiution every time I have an observation in real life,
 	//filling the container for the new updated events "new_sample".
@@ -79,8 +89,8 @@ int main() {
 		vector < int > row_matrix_new_sample(N, 0);
 		row_matrix_new_sample[first_sim_vect[j]] = 1;
 		vector < int > temp(N, 0);
-		//make all the simulations for all the times before we have an observations
-		for (size_t i = 0; i < trials-1; i++) {
+		//make all the simulations for all the times before we have observations
+		for (size_t i = 0; i < trials - 1; i++) {
 			for (int k = 0; k < N - 1; k++) {
 				if (row_matrix_sample[k] == 1 && row_matrix_sample[k + 1] == 0) {
 					bernoulli_distribution berd(theta);
@@ -113,44 +123,29 @@ int main() {
 			{
 				matrix_new_sample[trials - 1][k] = 1;
 			}
-		}
-		if (first_observed != 0) {
-			if (first_observed <= (trials - 1)){
-				for (size_t i = 0; i < first_observed; i++) {
-					for (size_t k = 0; k < first_observed - i +1; k++) {
-						if (matrix_new_sample[trials - 1 - i][k] == 1) {
-							if (matrix_new_sample[trials - 1 - i][k + 1] == 0) {
-								matrix_new_sample[trials - 1 - i][k + 1] = 1;
-							}
-						}
-					}
-				}
-			}
-			else {
-				for (size_t i = 0; i < trials - 1; i++) {
-					for (size_t k = 0; k < trials - i; k++) {
-						if (matrix_new_sample[trials - 1 - i][k] == 1) {
-							if (matrix_new_sample[trials - 1 - i][k + 1] == 0) {
-								matrix_new_sample[trials - 1 - i][k + 1] = 1;
-							}
-						}
+		}	
+		int left_first_observed = left(Obs[trials - 1]);
+		int right_first_observed = Obs[trials - 1].size() - right(Obs[trials - 1]) - 1;
+		if (first_sim_vect[j] < right_first_observed) {
+			if (right_first_observed != 0) {
+				for (size_t i = 0; i < trials; i++) {
+					for (size_t k = first_sim_vect[j] + 1; k < right_first_observed - i + 1; k++) {
+						matrix_new_sample[trials - 1 - i][k] = 1;
 					}
 				}
 			}
 		}
-		if (first_observed != N) {
-			for (size_t i = 0; i < trials - 1; i++) {
-				for (size_t k = N - 1; k >= first_observed + 1 + i; k--) {
-					if (matrix_new_sample[trials - 1 - i][k] == 1) {
-						if (matrix_new_sample[trials - 1 - i][k - 1] == 0) {
-							matrix_new_sample[trials - 1 - i][k - 1] = 1;
-						}
+		if (first_sim_vect[j] > left_first_observed) {
+			if (left_first_observed != N) {
+				for (size_t i = 0; i < trials; i++) {
+					for (size_t k = left_first_observed + i; k < first_sim_vect[j] + 1; k++) {
+						matrix_new_sample[trials - 1 - i][k] = 1;
 					}
 				}
 			}
 		}
 		//for all the subsequent times sample as usual
-		//then make a correction
+		//then make a correction and put the corrected terms in "new_sample"
 		vector < int > temp2(N, 0);
 		vector < int > temp3(N, 0);
 		for (int k = 0; k < N; k++){
@@ -158,11 +153,11 @@ int main() {
 			temp3[k] = matrix_new_sample[trials - 1][k];
 		}
 		for (size_t i = trials; i < X.size(); i++) {
-			if (first_observed != N) {
+			if (first_sim_vect[j] != N) {
 				for (int k = 0; k < N - 1; k++) {
-					if (matrix_sample[i - 1][k] == 1 && matrix_sample[i - 1][k + 1] == 0) {
+					if (matrix_new_sample[i - 1][k] == 1 && matrix_new_sample[i - 1][k + 1] == 0) {
 						bernoulli_distribution berd(theta);
-						temp2[k] = matrix_sample[i - 1][k];
+						temp2[k] = 1;
 						temp2[k + 1] = berd(generator);
 					}
 					if (Obs[i][k + 1] == 1) {
@@ -173,11 +168,11 @@ int main() {
 					}
 				}
 			}
-			if (first_observed != 0) {
+			if (first_sim_vect[j] != 0) {
 				for (int k = 1; k < N; k++) {
-					if (matrix_sample[i - 1][k] == 1 && matrix_sample[i - 1][k - 1] == 0) {
+					if (matrix_new_sample[i - 1][k] == 1 && matrix_new_sample[i - 1][k - 1] == 0) {
 						bernoulli_distribution berd(theta);
-						temp2[k] = matrix_sample[i - 1][k];
+						temp2[k] = 1;
 						temp2[k - 1] = berd(generator);
 					}
 					if (Obs[i][k - 1] == 1) {
@@ -187,6 +182,19 @@ int main() {
 						temp3[k - 1] = temp2[k - 1];
 					}
 				}
+			}
+			//this ensures that there are no 0s between 1s
+			for (vector < int >::iterator i = temp3.begin(); i != temp3.end() - 1; i++) {
+				if (*i == 1 && *(i + 1) == 0){
+					for (vector < int >::iterator j = temp3.end() - 1; j != i; j--) {
+						if (*j == 1 && *(j - 1) == 0) {
+							*(j - 1) = 1;
+						}
+					}
+				}
+			}
+			for (int k = 0; k < N; k++) {
+				temp2[k] = temp3[k];
 			}
 			matrix_sample.push_back(temp2);
 			matrix_new_sample.push_back(temp3);
@@ -199,7 +207,7 @@ int main() {
 	//if the first observation in real life happens after or at the same time
 	//as the simulated first observation, do nothing
 	//otherwise simulate observations up to the first observation in real life
-
+	
 	//simulate first observation
 	vector < int > vec_sim_trials;
 	for (int j = 0; j < n; j++) {
@@ -209,232 +217,100 @@ int main() {
 		geometric_distribution < int > geo(phi);
 		int sim_trials{ 0 };
 		do {
-		sim_trials = geo(generator) + 1;
+			sim_trials = geo(generator) + 1;
 		} while (sim_trials > X.size());
 		vec_sim_trials.push_back(sim_trials);
-		if (sim_trials < trials) {
+		int lf = left(sample[j][sim_trials - 1]);
+		int rg = N - right(sample[j][sim_trials - 1]) - 1;
+		if (lf == rg) {
+			sim_first_obs = lf;
+		}
+		else {
+			uniform_int_distribution<> unif(lf, rg);
+			sim_first_obs = unif(generator);
+		}
+		sam_obs[j][sim_trials - 1][sim_first_obs] = 1;
+		//simulate all other observations making a correction each time
+		for (int k = sim_trials - 1; k < X.size(); k++) {
+			vector < int > corrected(N, 0);
 			for (int i = 0; i < N; i++) {
-				if (sample[j][sim_trials - 1][i] == 1) {
-					range.push_back(i);
-				}
+				corrected[i] = Obs[k][i];
 			}
-			if (range[range.size() - 1] == range[0]) {
-				sim_first_obs = range[0];
+			int l = left(sample[j][k]);
+			int r = N - right(sample[j][k]) - 1;
+			bool all_0 = none_of(corrected.begin(), corrected.end(), [](int x) {return x == 1; });
+			if (all_0 == 1) {
+				int sim_another_1{ 0 };
+				if (l == r) {
+					sim_another_1 = l;
+				}
+				else {
+					uniform_int_distribution<> unif(l, r);
+					sim_another_1 = unif(generator);
+				}
+				sam_obs[j][k][sim_another_1] = 1;
 			}
 			else {
-				sim_first_obs = rd() % (range[range.size() - 1] - range[0]) + range[0];
-			}
-			sam_obs[j][sim_trials - 1][sim_first_obs] = 1;
-		}
-	}
-
-	//simulate the rest up to the first observation in real life
-	for (int k = 0; k < n; k++) {
-		//calculate left and right which are the first and last invaded cells
-		if (vec_sim_trials[k] < trials) {
-			for (size_t i = vec_sim_trials[k] - 1; i < trials - 1; i++) {
-				int left{ 0 };
-				int right{ 0 };
-				for (size_t j = 0; j < N - 1; j++) {
-					if (new_sample[k][i + 1][j] == 1 && new_sample[k][i + 1][j + 1] == 0) {
-						right = j;
+				int last_observed_left = left(corrected);
+				for (int i = last_observed_left; i >= l; i--) {
+					bernoulli_distribution berd(phi);
+					int next_left = berd(generator);
+					if (next_left == 1) {
+						corrected[i] = 1;
 					}
-					else if (new_sample[k][i + 1][N - 1] == 1) { right = N - 1; }
+					else { break; }
 				}
-				for (size_t j = 1; j < N; j++) {
-					if (new_sample[k][i + 1][j] == 1 && new_sample[k][i + 1][j - 1] == 0) {
-						left = j;
+				int last_observed_right = N - right(corrected) - 1;
+				for (int i = last_observed_right; i < r + 1; i++) {
+					bernoulli_distribution berd(phi);
+					int next_right = berd(generator);
+					if (next_right == 1) {
+						corrected[i] = 1;
 					}
-					else if (new_sample[k][i + 1][0] == 1) { left = 0; }
+					else { break; }
 				}
-				//sample between left and right
-				for (int j = 0; j < N; j++) {
-					sam_obs[k][i + 1][j] = sam_obs[k][i][j];
-				}
-				if (left == right) {}
-				else {
-					for (int j = left; j < right; j++) {
-						int last_inv_left{ 0 };
-						if (sam_obs[k][i][j] == 0 && sam_obs[k][i][j + 1] == 1) {
-							last_inv_left = j + 1;
-							for (int j = last_inv_left; j >= left; j--) {
-								bernoulli_distribution berd(phi);
-								int l = berd(generator);
-								if (l == 1) {
-									sam_obs[k][i + 1][j] = l;
-								}
-								else { break; }
-							}
-						}
-						int last_inv_right{ 0 };
-						if (sam_obs[k][i][j] == 1 && sam_obs[k][i][j + 1] == 0) {
-							last_inv_right = j;
-							for (int j = last_inv_right; j < right; j++) {
-								bernoulli_distribution berd(phi);
-								int l = berd(generator);
-								if (l == 1) {
-									sam_obs[k][i + 1][j + 1] = l;
-								}
-								else { break; }
-							}
-						}
-					}
-				}
-			}
-		}
-		else {
-			for (int j = 0; j < vec_sim_trials[k]; j++) {
 				for (int i = 0; i < N; i++) {
-					sam_obs[k][j][i] = Obs[j][i];
+					sam_obs[j][k][i] = corrected[i];
 				}
 			}
 		}
-	}
+	} 
 
-
-	//Sampling the observations for every particle from a bernoulli distribution
-	//with probability phi, filling the container "sam_obs".
-	//Making a substitiution every time I have an observation in real life,
-	//the matrix for the corrected observations is equivalent to the real life observation matrix "Obs".
-	if (trials == 1) {
-		for (int j = 0; j < n; j++) {
-			for (int i = 0; i < N; i++) {
-				sam_obs[j][trials - 1][i] = Obs[trials - 1][i];
-			}
-		}
-	}
-	vector < int > temp(N, 0);
-	for (int j = 0; j < N; j++) {
-		temp[j] = Obs[trials - 1][j];
-	}
+	//Finding the unnormalised weights (using log then exponentiating)
+	//filling the container "unnorm_weights".
+	/*
+	vector < int > unnorm_weights{1/n};
 	for (int k = 0; k < n; k++) {
-		//from the time of the first observation sample next step
-		//then make the substitutions
-		if (vec_sim_trials[k] < trials) {
-			for (int j = 0; j < N; j++) {
-				sam_obs[k][trials - 1][j] = Obs[trials - 1][j];
+		for (int i = 1; i < X.size(); i++) {
+			//these are all the variable used to calculate h(k_t) primed
+			int num_prev_invaded = count(sample[0][i-1].begin(), sample[0][i-1].end(), 1);
+			int num_now_invaded = count(sample[0][i].begin(), sample[0][i].end(), 1);
+			int num_prev_observed = count(sam_obs[k][i-1].begin(), sam_obs[k][i-1].end(), 1);
+			int num_now_observed = count(sam_obs[k][i].begin(), sam_obs[k][i].end(), 1) - num_prev_observed;
+			int alpha = left_unobserved(sam_obs[k][i-1]);
+			int beta = right_unobserved(sam_obs[k][i-1]);
+			int minimum = min(alpha, beta);
+			int maximum = max(alpha, beta);
+			//these are all the variable used to calculate h(k_t) primed
+			int num_prev_invaded_primed = count(new_sample[k][i-1].begin(), new_sample[0][i-1].end(), 1);
+			int num_now_invaded_primed = count(new_sample[k][i].begin(), new_sample[0][i].end(), 1);
+			int num_prev_observed_primed = count(Obs[i-1].begin(), Obs[i-1].end(), 1);
+			int num_now_observed_primed = count(Obs[i].begin(), Obs[i].end(), 1) - num_prev_observed_primed;
+			int alpha_primed = left_unobserved(Obs[i-1]);
+			int beta_primed = right_unobserved(Obs[i-1]);
+			int minimum_primed = min(alpha_primed, beta_primed);
+			int maximum_primed = max(alpha_primed, beta_primed);
+			//calculate h(k_t)
+			int hk{ 0 };
+			if (i <= vec_sim_trials[k] - 2) {}
+			else {
+				hk = function_h(num_now_observed, minimum, maximum);
 			}
-			for (int i = trials - 1; i < X.size(); i++) {
-				//calculate left and right which are the first and last invaded cells
-				int left{ 0 };
-				int right{ 0 };
-				for (size_t j = 0; j < N - 1; j++) {
-					if (new_sample[k][i][j] == 1 && new_sample[k][i][j + 1] == 0) {
-						right = j;
-					}
-					else if (new_sample[k][i][N - 1] == 1) { right = N - 1; }
-				}
-				for (size_t j = 1; j < N; j++) {
-					if (new_sample[k][i][j] == 1 && new_sample[k][i][j - 1] == 0) {
-						left = j;
-					}
-					else if (new_sample[k][i][0] == 1) { left = 0; }
-				}
-				//sample between left and right
-				if (left == right) {
-					for (int j = 0; j < N; j++) {
-						sam_obs[k][i][j] = temp[j];
-					}
-				}
-				else {
-					for (int j = 0; j < N; j++) {
-						temp[j] = Obs[i][j];
-					}
-					for (int j = left; j < right; j++) {
-						int last_inv_left{ 0 };
-						if (Obs[i][j] == 0 && Obs[i][j + 1] == 1) {
-							last_inv_left = j + 1;
-							for (int j = last_inv_left; j >= left; j--) {
-								bernoulli_distribution berd(phi);
-								int l = berd(generator);
-								if (l == 1) {
-									temp[j] = l;
-								}
-								else { break; }
-							}
-						}
-						int last_inv_right{ 0 };
-						if (Obs[i][j] == 1 && Obs[i][j + 1] == 0) {
-							last_inv_right = j;
-							for (int j = last_inv_right; j < right; j++) {
-								bernoulli_distribution berd(phi);
-								int l = berd(generator);
-								if (l == 1) {
-									temp[j + 1] = l;
-								}
-								else { break; }
-							}
-						}
-					}
-					for (int j = 0; j < N; j++) {
-						sam_obs[k][i][j] = temp[j];
-					}
-				}
-			}
+			//cout << "alpha " << alpha << endl;
+			//cout << "hk " << hk << endl;
 		}
-		else {
-			for (int j = 0; j < N; j++) {
-				temp[j] = Obs[vec_sim_trials[k] - 1][j];
-			}
-			for (int i = vec_sim_trials[k] - 1; i < X.size(); i++) {
-				//calculate left and right which are the first and last invaded cells
-				int left{ 0 };
-				int right{ 0 };
-				for (size_t j = 0; j < N - 1; j++) {
-					if (new_sample[k][i][j] == 1 && new_sample[k][i][j + 1] == 0) {
-						right = j;
-					}
-					else if (new_sample[k][i][N - 1] == 1) { right = N - 1; }
-				}
-				for (size_t j = 1; j < N; j++) {
-					if (new_sample[k][i][j] == 1 && new_sample[k][i][j - 1] == 0) {
-						left = j;
-					}
-					else if (new_sample[k][i][0] == 1) { left = 0; }
-				}
-				//sample between left and right
-				for (int j = 0; j < N; j++) {
-					temp[j] = Obs[i][j];
-				}
-				for (int j = left; j < right; j++) {
-					sam_obs[k][i][j] = temp[j];
-					temp[j] = Obs[i][j];
-					int last_inv_left{ 0 };
-					if (Obs[i][j] == 0 && Obs[i][j + 1] == 1) {
-						last_inv_left = j + 1;
-						for (int j = last_inv_left; j >= left; j--) {
-							bernoulli_distribution berd(phi);
-							int l = berd(generator);
-							if (l == 1) {
-								temp[j] = l;
-							}
-							else { break; }
-						}
-					}
-					int last_inv_right{ 0 };
-					if (Obs[i][j] == 1 && Obs[i][j + 1] == 0) {
-						last_inv_right = j;
-						for (int j = last_inv_right; j < right; j++) {
-							bernoulli_distribution berd(phi);
-							int l = berd(generator);
-							if (l == 1) {
-								temp[j + 1] = l;
-							}
-							else { break; }
-						}
-					}
-				}
-				for (int j = 0; j < N; j++) {
-					sam_obs[k][i][j] = temp[j];
-				}
-			}
-		}
-		cout << "new sample[j]" << endl;
-		print_matrix(new_sample[k]);
-		cout << "sam_obs[j]" << endl;
-		print_matrix(sam_obs[k]);
 	}
-
+	*/
 	/*
 	//Finding the unnormalised weights (using log then exponentiating)
 	//filling the container "un_weights".
@@ -558,3 +434,34 @@ void print_matrix(vector < vector < int > > m) {
 		cout << endl;
 	}
 }
+
+//this function calculates the number of 0 on the left before the first 1
+int left(vector < int > v) {
+	vector < int >::iterator it = find(v.begin(), v.end(), 1);
+	int result = distance(v.begin(), it);
+	return result;
+}
+
+//this function calculates the number of 0 on the right before the first 1
+int right(vector < int > v) {
+	vector < int >::reverse_iterator it = find(v.rbegin(), v.rend(), 1);
+	int result = distance(v.rbegin(), it);
+	return result;
+}
+
+//this function calculates the discrete function h(k_t)
+int function_h(int k, int l, int L) {
+	int h{ 0 };
+	if (k <= l - 1) {
+		h = k + 1;
+	}
+	else if (k >= l || k <= L) {
+		h = l + 1;
+	}
+	else {
+		h = l - k + L + 1;
+	}
+	return h;
+}
+
+
