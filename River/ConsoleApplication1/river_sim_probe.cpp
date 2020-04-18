@@ -23,8 +23,6 @@ vector < vector < int > > X;
 vector < vector < int > > Obs;
 //this will be the time of the first observation
 size_t trials{ 0 };
-int first_observed_left{ 0 };
-int first_observed_right{ 0 };
 
 
 
@@ -118,7 +116,7 @@ int simprobe() {
 	for (size_t i = 0; i < trials - 1; i++) {
 		Obs.push_back(obs);
 	}
-	//if hte range is only one this will be the position of first observation
+	//if the range is only one this will be the position of first observation
 	if (range[range.size() - 1] == range[0]) {
 		first_observed = range[0];
 	}
@@ -131,10 +129,10 @@ int simprobe() {
 
 	//simulate now the rest of the observations
 	
-	//calculate left and right which are the first and last invaded cells
-	int left{ 0 };
-	int right{ 0 };
 	for (size_t i = trials - 1; i < X.size(); i++) {
+		//calculate left and right which are the first and last invaded cells
+		int left{ 0 };
+		int right{ 0 };
 		for (size_t j = 0; j < N - 1; j++) {
 			if (X[i][j] == 1 && X[i][j + 1] == 0) {
 				right = j;
@@ -153,6 +151,7 @@ int simprobe() {
 		if (left == right) {
 			Obs.push_back(tempobs);
 		}
+		//simulate between left and right
 		else {
 			for (int j = left; j < right; j++) {
 				int last_inv_left{ 0 };

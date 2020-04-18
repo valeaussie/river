@@ -17,17 +17,11 @@ const double theta = 0.3;
 const double phi = 0.3;
 const int N = 10;
 
+
 //this is the matrix of the invasion
 vector < vector < int > > X;
 //this is the matrix of the observations
 vector < vector < int > > Obs;
-//this will be the time of the first observation
-size_t trials{ 0 };
-int first_observed_left{ 0 };
-int first_observed_right{ 0 };
-
-
-
 
 //void print_matrix(vector < vector < int > > m);
 //void print_vector(vector < int > v);
@@ -99,42 +93,14 @@ int simprobe() {
 	//calcualte when the first observation will happen with a geometric distribution
 	//note that we can observe only in the range where there invasion is
 
-	//this is the cell where the first observation happened
-	int first_observed{ 0 };
+	//We assume that we observe the first invaded cell
 	vector < int > obs(N, 0);
-	vector < int > range;
-	geometric_distribution<int> geo(phi);
-	//this will ensure that the trials are less than the time needed for a full invasion
-	do {
-		trials = geo(generator) + 1;
-	} while (trials > X.size());
-	//calculate in which cells I can observe (create a range)
-	for (int i = 0; i < N; i++) {
-		if (X[trials - 1][i] == 1) {
-			range.push_back(i);
-		}
-	}
-	//fill with 0 vectors the matrix of observation up to the time of first observation
-	for (size_t i = 0; i < trials - 1; i++) {
-		Obs.push_back(obs);
-	}
-	//if hte range is only one this will be the position of first observation
-	if (range[range.size() - 1] == range[0]) {
-		first_observed = range[0];
-	}
-	//otherwise randomly choose a cell of the observation (in the available range)
-	else {
-		first_observed = rd() % (range[range.size() - 1] - range[0]) + range[0];
-	}
 	vector < int > tempobs(N, 0);
-	tempobs[first_observed] = 1;
-
-	//simulate now the rest of the observations
-
-	//calculate left and right which are the first and last invaded cells
-	int left{ 0 };
-	int right{ 0 };
-	for (size_t i = trials - 1; i < X.size(); i++) {
+	tempobs[first_invaded] = 1;
+	for (size_t i = 0; i < X.size(); i++) {
+		//calculate left and right which are the first and last invaded cells
+		int left{ 0 };
+		int right{ 0 };
 		for (size_t j = 0; j < N - 1; j++) {
 			if (X[i][j] == 1 && X[i][j + 1] == 0) {
 				right = j;
@@ -153,6 +119,7 @@ int simprobe() {
 		if (left == right) {
 			Obs.push_back(tempobs);
 		}
+		//simulate between left and right
 		else {
 			for (int j = left; j < right; j++) {
 				int last_inv_left{ 0 };

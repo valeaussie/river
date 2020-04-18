@@ -20,12 +20,11 @@ using namespace std;
 //FUNCTIONS
 
 void print_matrix(vector < vector < int > > m);
+void print_matrix(vector < vector < double > > m);
 void print_vector(vector < int > v);
+void print_vector(vector < double > v);
 int left(vector < int > v);
 int right(vector < int > v);
-int function_h(int k, int l, int L);
-//bool is_zero(vector < int > v);
-
 
 
 int main() {
@@ -38,35 +37,26 @@ int main() {
 	//DEFINITIONS
 
 	//number of particles
-	int n = 4;
-	int m = X.size();
+	int n = 5;
 	//define the container for the samples 
 	vector < vector < vector < int > > > sample;
 	//define the container for the corrected samples
 	vector < vector < vector < int > > > new_sample;
 	//define the empty matrix for the sampled observations
-	vector < vector < vector < int > > > sam_obs(n, vector < vector < int > >(m, vector < int >(N)));
+	vector < vector < vector < int > > > sam_obs(n, vector < vector < int > >((X.size()), vector < int >(N)));
+	//define the container for the weights
+	vector < vector < double > > weights((X.size()), vector < double >(n, 1));
 	//define the container for the resampling
-	vector < vector < vector < int > > > resampled;
-	//define the containter for the unnormalised weights
-	vector < vector < vector < int > > > un_weights;
-	//define the container for the normalised weights
-	vector < vector < vector < int > > > weights;
-	//define the number of particles
+	vector < vector < vector < int > > > resampled(n, vector < vector < int > >((X.size()), vector < int >(N)));
 
+	cout << "real invasion" << endl;
 	print_matrix(X);
+	cout << "real observations " << endl;
 	print_matrix(Obs);
 
 	//simulate the first invaded cell for all particles
 	vector < vector < int > > samplem;
 	vector < int > first_sim_vect;
-	//for each particle, define the cells where there is an invasion 
-	//and randomly select the first observation in that range
-	//int end_of_range = right_first_observed + (trials - 1);
-	//int start_of_range = left_first_observed - (trials - 1);
-	//if (start_of_range < 0) { start_of_range = 0; }
-	//else if (end_of_range > N - 1) { end_of_range = N - 1; }
-	//else {}
 	for (int j = 0; j < n; j++) {
 		vector < int > samplev(N, 0);
 		uniform_int_distribution<> unif(0, N - 1);
@@ -75,7 +65,7 @@ int main() {
 		samplem.push_back(samplev);
 		first_sim_vect.push_back(first_simulated);
 	}
-	//Sampling the invasion for every particle from a bernoulli distribution
+	//Sampling the invasion for every particle from a Bernoulli distribution
 	//with probability theta, filling the container "sample".
 	//Making a substitiution every time I have an observation in real life,
 	//filling the container for the new updated events "new_sample".
@@ -83,79 +73,17 @@ int main() {
 		vector < vector < int > > matrix_sample;
 		matrix_sample.push_back(samplem[j]);
 		vector < vector < int > > matrix_new_sample;
-		matrix_new_sample.push_back(samplem[j]);
-		vector < int > row_matrix_sample(N, 0);
-		row_matrix_sample[first_sim_vect[j]] = 1;
-		vector < int > row_matrix_new_sample(N, 0);
-		row_matrix_new_sample[first_sim_vect[j]] = 1;
-		vector < int > temp(N, 0);
-		//make all the simulations for all the times before we have observations
-		for (size_t i = 0; i < trials - 1; i++) {
-			for (int k = 0; k < N - 1; k++) {
-				if (row_matrix_sample[k] == 1 && row_matrix_sample[k + 1] == 0) {
-					bernoulli_distribution berd(theta);
-					temp[k] = row_matrix_sample[k];
-					if (temp[N - 1] != 1) {
-						temp[k + 1] = berd(generator);
-					}
-					else { temp[k + 1] = 1; }
-				}
-			}
-			for (int k = 1; k < N; k++) {
-				if (row_matrix_sample[k] == 1 && row_matrix_sample[k - 1] == 0) {
-					bernoulli_distribution berd(theta);
-					temp[k] = row_matrix_sample[k];
-					temp[k - 1] = berd(generator);
-					if (temp[0] == 1) { break; }
-				}
-			}
-			for (int k = 0; k < N - 1; k++) {
-				row_matrix_sample[k] = temp[k];
-				row_matrix_new_sample[k] = temp[k];
-			}
-			matrix_sample.push_back(temp);
-			matrix_new_sample.push_back(temp);
-		}
-		//at the time of the first observation make the substitutions for the first
-		//observation and for the previous times if needed
-		for (int k = 0; k < N; k++) {
-			if (Obs[trials - 1][k] == 1)
-			{
-				matrix_new_sample[trials - 1][k] = 1;
-			}
-		}
-		int left_first_observed = left(Obs[trials - 1]);
-		int right_first_observed = Obs[trials - 1].size() - right(Obs[trials - 1]) - 1;
-		if (first_sim_vect[j] < right_first_observed) {
-			if (right_first_observed != 0) {
-				for (size_t i = 0; i < trials; i++) {
-					for (size_t k = first_sim_vect[j] + 1; k < right_first_observed - i + 1; k++) {
-						matrix_new_sample[trials - 1 - i][k] = 1;
-					}
-				}
-			}
-		}
-		if (first_sim_vect[j] > left_first_observed) {
-			if (left_first_observed != N) {
-				for (size_t i = 0; i < trials; i++) {
-					for (size_t k = left_first_observed + i; k < first_sim_vect[j] + 1; k++) {
-						matrix_new_sample[trials - 1 - i][k] = 1;
-					}
-				}
-			}
-		}
-		//for all the subsequent times sample as usual
-		//then make a correction and put the corrected terms in "new_sample"
+		matrix_new_sample.push_back(samplem[0]);
 		vector < int > temp2(N, 0);
 		vector < int > temp3(N, 0);
 		for (int k = 0; k < N; k++) {
-			temp2[k] = matrix_new_sample[trials - 1][k];
-			temp3[k] = matrix_new_sample[trials - 1][k];
+			temp2[k] = matrix_new_sample[0][k];
+			temp3[k] = matrix_new_sample[0][k];
 		}
-		for (size_t i = trials; i < X.size(); i++) {
-			if (first_sim_vect[j] != N) {
+		for (size_t i = 1; i < X.size(); i++) {
+			if (first_sim_vect[j] != N-1) {
 				for (int k = 0; k < N - 1; k++) {
-					if (matrix_new_sample[i - 1][k] == 1 && matrix_new_sample[i - 1][k + 1] == 0) {
+					if (matrix_new_sample[i-1][k] == 1 && matrix_new_sample[i-1][k + 1] == 0) {
 						bernoulli_distribution berd(theta);
 						temp2[k] = 1;
 						temp2[k + 1] = berd(generator);
@@ -170,7 +98,7 @@ int main() {
 			}
 			if (first_sim_vect[j] != 0) {
 				for (int k = 1; k < N; k++) {
-					if (matrix_new_sample[i - 1][k] == 1 && matrix_new_sample[i - 1][k - 1] == 0) {
+					if (matrix_new_sample[i-1][k] == 1 && matrix_new_sample[i-1][k - 1] == 0) {
 						bernoulli_distribution berd(theta);
 						temp2[k] = 1;
 						temp2[k - 1] = berd(generator);
@@ -202,36 +130,13 @@ int main() {
 		sample.push_back(matrix_sample);
 		new_sample.push_back(matrix_new_sample);
 	}
-	//simulate the first observation for each particle with a geometric distribution
-	//note that we can observe only in the range where the invasion is
-	//if the first observation in real life happens after or at the same time
-	//as the simulated first observation, do nothing
-	//otherwise simulate observations up to the first observation in real life
 
-	//simulate first observation
+	//simulate the observations
 	vector < int > vec_sim_trials;
 	for (int j = 0; j < n; j++) {
-		vector < int > obs(N, 0);
-		vector < int > range;
-		int sim_first_obs{ 0 };
-		geometric_distribution < int > geo(phi);
-		int sim_trials{ 0 };
-		do {
-			sim_trials = geo(generator) + 1;
-		} while (sim_trials > X.size());
-		vec_sim_trials.push_back(sim_trials);
-		int lf = left(sample[j][sim_trials - 1]);
-		int rg = N - right(sample[j][sim_trials - 1]) - 1;
-		if (lf == rg) {
-			sim_first_obs = lf;
-		}
-		else {
-			uniform_int_distribution<> unif(lf, rg);
-			sim_first_obs = unif(generator);
-		}
-		sam_obs[j][sim_trials - 1][sim_first_obs] = 1;
+		sam_obs[j][0][first_sim_vect[j]] = 1;
 		//simulate all other observations making a correction each time
-		for (int k = sim_trials - 1; k < X.size(); k++) {
+		for (size_t k = 0; k < X.size(); k++) {
 			vector < int > corrected(N, 0);
 			for (int i = 0; i < N; i++) {
 				corrected[i] = Obs[k][i];
@@ -275,155 +180,187 @@ int main() {
 			}
 		}
 	}
+	cout << "first particle sample " << endl;
+	print_matrix(sample[0]);
+	cout << "first particle new sample " << endl;
+	print_matrix(new_sample[0]);
 
-	//Finding the unnormalised weights (using log then exponentiating)
-	//filling the container "unnorm_weights".
-	/*
-	vector < int > unnorm_weights{1/n};
 	for (int k = 0; k < n; k++) {
-		for (int i = 1; i < X.size(); i++) {
-			//these are all the variable used to calculate h(k_t) primed
-			int num_prev_invaded = count(sample[0][i-1].begin(), sample[0][i-1].end(), 1);
-			int num_now_invaded = count(sample[0][i].begin(), sample[0][i].end(), 1);
-			int num_prev_observed = count(sam_obs[k][i-1].begin(), sam_obs[k][i-1].end(), 1);
-			int num_now_observed = count(sam_obs[k][i].begin(), sam_obs[k][i].end(), 1) - num_prev_observed;
-			int alpha = left_unobserved(sam_obs[k][i-1]);
-			int beta = right_unobserved(sam_obs[k][i-1]);
-			int minimum = min(alpha, beta);
-			int maximum = max(alpha, beta);
-			//these are all the variable used to calculate h(k_t) primed
-			int num_prev_invaded_primed = count(new_sample[k][i-1].begin(), new_sample[0][i-1].end(), 1);
-			int num_now_invaded_primed = count(new_sample[k][i].begin(), new_sample[0][i].end(), 1);
-			int num_prev_observed_primed = count(Obs[i-1].begin(), Obs[i-1].end(), 1);
-			int num_now_observed_primed = count(Obs[i].begin(), Obs[i].end(), 1) - num_prev_observed_primed;
-			int alpha_primed = left_unobserved(Obs[i-1]);
-			int beta_primed = right_unobserved(Obs[i-1]);
-			int minimum_primed = min(alpha_primed, beta_primed);
-			int maximum_primed = max(alpha_primed, beta_primed);
-			//calculate h(k_t)
-			int hk{ 0 };
-			if (i <= vec_sim_trials[k] - 2) {}
-			else {
-				hk = function_h(num_now_observed, minimum, maximum);
-			}
-			//cout << "alpha " << alpha << endl;
-			//cout << "hk " << hk << endl;
-		}
+		resampled[k][0] = new_sample[k][0];
 	}
-	*/
-	/*
-	//Finding the unnormalised weights (using log then exponentiating)
-	//filling the container "un_weights".
-	//This is an important part of the code, should be always sure it is correct.
-
-	vector < vector < vector < double > > > tresampled;
-	for (size_t j = 0; j < N; j++) {
-		vector < vector < double > > matrix_un_weights;
-		vector < double > vector_w;
-		for (size_t i = 0; i < n; i++) {
-			vector < double > vector_log_num;
-			vector < double > vector_log_den;
-			vector < double > row_sample;
-			row_sample = sample[i][j];
-			vector < size_t > row_obs;
-			row_obs = sam_obs[i][j];
-			vector < double > row_new_sample;
-			row_new_sample = new_sample[i][j];
-			vector < size_t > row_new_obs;
-			row_new_obs = new_sam_obs[i][j];
-			for (size_t k = 0; k < j + 1; k++) {
-				double w{ 1 };
-				double num{ 0 };
-				double den{ 0 };
-				double exp_sum_num{ 1 };
-				double exp_sum_den{ 1 };
-				if (k == 0) { w = 1; }
-				else if (((row_new_sample[k] == row_sample[k]) && (row_new_sample[k - 1] == row_sample[k - 1]))) {}
+	//Finding the unnormalised weights and resampling
+	vector < double > vector_weights;
+	for (int k = 0; k < n; k++) {
+		vector < double > sum_logs((X.size()), 0);
+		vector < double > log_obs_left((X.size()), 0);
+		vector < double > log_obs_right((X.size()), 0);
+		vector < double > log_obs_left_corr((X.size()), 0);
+		vector < double > log_obs_right_corr((X.size()), 0);
+		vector < double > log_invasion_left((X.size()), 0);
+		vector < double > log_invasion_right((X.size()), 0);
+		vector < double > log_invasion_left_corr((X.size()), 0);
+		vector < double > log_invasion_right_corr((X.size()), 0);
+		vector < double > log_weights((X.size()), 0);
+		vector_weights.push_back(1 / N);
+		for (int i = 1; i < X.size(); i++) {;
+			//log of detections on the left
+			int left_exp = left(Obs[i - 1]) - left(sam_obs[k][i]);
+			int left_exp_corr = left(Obs[i - 1]) - left(Obs[i]);
+			if (left_exp == left_exp_corr) {
+				log_obs_left[i] = 1;	
+			}
+			else {
+				double phiexpleft{ 1 };
+				double phiexpleft_corr{ 1 };
+				for (int j = 0; j < left_exp; j++) {
+					phiexpleft = phiexpleft * phi;
+				}
+				for (int j = 0; j < left_exp_corr; j++) {
+					phiexpleft_corr = phiexpleft_corr * phi;
+				}
+				double log_phiexpleft = log(phiexpleft);
+				double log_phiexpleft_corr = log(phiexpleft_corr);
+				if (left(sam_obs[k][i]) != 0) {
+					log_obs_left[i] = log_phiexpleft + log(1 - phi);
+				}
 				else {
-					num = ((row_new_sample[k] - phi * row_new_sample[k - 1]) * (row_new_sample[k] - phi * row_new_sample[k - 1]));
-					den = ((row_sample[k] - phi * row_sample[k - 1]) * (row_sample[k] - phi * row_sample[k - 1]));
+					log_obs_left[i] = log_phiexpleft;
 				}
-				if (k == 0) {}
-				else if (row_new_obs[k] == row_obs[k]) {}
-				else if (row_new_obs[k] == 1 && row_obs[k] == 0) { num = num + log(p); den = den + log(1 - p); }
-				else { num = num + log(1 - p); den = den + log((p)); }
-				vector_log_num.push_back(num);
-				vector_log_den.push_back(den);
-				double sum_num = accumulate(vector_log_num.begin(), vector_log_num.end(), 0.0);
-				double sum_den = accumulate(vector_log_den.begin(), vector_log_den.end(), 0.0);
-				exp_sum_num = exp(sum_num);
-				exp_sum_den = exp(sum_den);
-				if (exp_sum_den != 0) { w = exp_sum_num / exp_sum_den; }
-				vector_w.push_back(w);
+				if (left(Obs[i]) != 0) {
+					log_obs_left_corr[i] = log_phiexpleft_corr + log(1 - phi);
+				}
+				else {
+					log_obs_left_corr[i] = log_phiexpleft_corr;
+				}
 			}
-			matrix_un_weights.push_back(vector_w);
-			vector_w.clear();
-		}
-
-		// begin resampling step (resampling every time)
-		vector < vector < double > > temp_matrix_x;
-		vector < double > temp_x;
-		for (size_t k = 0; k < j + 1; k++) {
-			if (obs[j][k] == 1) {
-				for (size_t l = 0; l < n; l++) {
-					temp_x.push_back(new_sample[l][j][k]);
-				}
-				temp_matrix_x.push_back(temp_x);
-				temp_x.clear();
+			//log of detections on the right
+			int right_exp = right(Obs[i - 1]) - right(sam_obs[k][i]);
+			int right_exp_corr = right(Obs[i - 1]) - right(Obs[i]);
+			if (left_exp == right_exp_corr) {
+				log_obs_right[i] = 1;
 			}
 			else {
-				vector < double > temp_w;
-				for (size_t l = 0; l < n; l++) {
-					temp_w.push_back(matrix_un_weights[l][k]);
+				double phiexpright{ 1 };
+				double phiexpright_corr{ 1 };
+				for (int j = 0; j < right_exp; j++) {
+					phiexpright = phiexpright * phi;
 				}
-				for (size_t l = 0; l < n; l++) {
-					discrete_distribution < int > discrete(temp_w.begin(), temp_w.end());
-					temp_x.push_back(new_sample[discrete(generator)][j][k]);
+				for (int j = 0; j < right_exp_corr; j++) {
+					phiexpright_corr = phiexpright_corr * phi;
 				}
-				temp_matrix_x.push_back(temp_x);
-				temp_x.clear();
+				double log_phiexpright = log(phiexpright);
+				double log_phiexpright_corr = log(phiexpright_corr);
+				if (right(sam_obs[k][i]) != N - 1) {
+					log_obs_right[i] = log_phiexpright + log(1 - phi);
+				}
+				else {
+					log_obs_right[i] = log_phiexpright;
+				}
+				if (right(Obs[i]) != N - 1) {
+					log_obs_right_corr[i] = log_phiexpright_corr + log(1 - phi);
+				}
+				else {
+					log_obs_right_corr[i] = log_phiexpright_corr;
+				}
 			}
-		}
-		vector < vector < double > > ttmatrix;
-		vector < double > ttvector;
-		for (size_t k = 0; k < n; k++) {
-			for (size_t l = 0; l < j + 1; l++) {
-				ttvector.push_back(temp_matrix_x[l][k]);
+			double log_obs = log_obs_left[i] - log_obs_left_corr[i] + log_obs_right[i] - log_obs_right_corr[i];
+			//log of expansion on the left
+			int expk = left(sample[k][i - 1]) - left(sample[k][i]);
+			int expk_corr = left(new_sample[k][i - 1]) - left(new_sample[k][i]);
+			if (expk == expk_corr) {
+				log_invasion_left[i] = 1;
 			}
-			ttmatrix.push_back(ttvector);
-			ttvector.clear();
+			else {
+				if (left(sample[k][i - 1]) != 0 && left(sample[k][i]) != 0) {
+					if (expk == 0) {
+						log_invasion_left[i] = log(1 - theta);
+					}
+					else {
+						log_invasion_left[i] = log(theta);
+					}
+				}
+				else {}
+				if (left(new_sample[k][i - 1]) != 0 && left(new_sample[k][i]) != 0) {
+					if (expk == 0) {
+						log_invasion_left_corr[i] = log(1 - theta);
+					}
+					else {
+						log_invasion_left_corr[i] = log(theta);
+					}
+				}
+				else {}
+			}
+			//log of expansion on the right
+			int exph = right(sample[k][i]) - right(sample[k][i - 1]);
+			int exph_corr = right(new_sample[k][i - 1]) - right(new_sample[k][i]);
+			if (exph == exph_corr) {
+				log_invasion_left[i] = 1;
+			}
+			else {
+				if (right(sample[k][i - 1]) != N - 1 && left(sample[k][i]) != N - 1) {
+					if (exph == 0) {
+						log_invasion_right[i] = log(1 - theta);
+					}
+					else {
+						log_invasion_right[i] = log(theta);
+					}
+				}
+				else {}
+				if (right(new_sample[k][i - 1]) != N - 1 && left(new_sample[k][i]) != N - 1) {
+					if (exph == 0) {
+						log_invasion_right_corr[i] = log(1 - theta);
+					}
+					else {
+						log_invasion_right_corr[i] = log(theta);
+					}
+				}
+				else {}
+			}
+			double log_inv = log_invasion_left[i] - log_invasion_left_corr[i] + log_invasion_right[i] - log_invasion_right_corr[i];
+			sum_logs[i] = log_obs + log_inv;
+			double w = exp(sum_logs[i]);
+			weights[i][k] = w;
 		}
-		resampled.push_back(ttmatrix);
-		ttmatrix.clear();
+	}
+	for (int i = 0; i < X.size(); i++) {
+		for (int k = 0; k < n; k++) {
+			vector < double > pippo{ 1, 3, 5 };
+			discrete_distribution < int > discrete(weights[i].begin(), weights[i].end());
+			resampled[k][i] = new_sample[discrete(generator)][i];
+		}
 	}
 
-	//Create .csv files for the plots
+	cout << "resampled " << endl;
+	print_matrix(resampled[4]);
+
 
 	//Create a .csv file with the resampled particles
 	ofstream outFile3("./resampled.csv");
 	outFile3 << endl;
-	for (size_t lin = 0; lin < n; lin++) {
+	for (size_t k = 0; k < n; k++) {
 		for (size_t col = 0; col < N; col++) {
-			outFile3 << resampled[N - 1][lin][col] << ",";
+			outFile3 << resampled[k][(X.size())-1][col] << ",";
 		}
 		outFile3 << endl;
 	}
 	outFile3.close();
-
-	cout << "another test" << endl;
-	*/
+	
 	return 0;
 
 
 }
-
-
 
 //functions definitions
 
 //this function prints a vector of integers
 void print_vector(vector < int > v) {
 	for (const int x : v) cout << x << ' ';
+	cout << endl;
+}
+
+//this function prints a vector of double
+void print_vector(vector < double > v) {
+	for (const double x : v) cout << x << ' ';
 	cout << endl;
 }
 
@@ -435,33 +372,27 @@ void print_matrix(vector < vector < int > > m) {
 	}
 }
 
-//this function calculates the number of 0 on the left before the first 1
+//this function prints a matrix of double
+void print_matrix(vector < vector < double > > m) {
+	for (const vector < double > v : m) {
+		for (double x : v) cout << x << ' ';
+		cout << endl;
+	}
+}
+
+//this function calculates the position of the first 1 on the left
 int left(vector < int > v) {
 	vector < int >::iterator it = find(v.begin(), v.end(), 1);
 	int result = distance(v.begin(), it);
 	return result;
 }
 
-//this function calculates the number of 0 on the right before the first 1
+//this function calculates the position of first 1 on the right
 int right(vector < int > v) {
 	vector < int >::reverse_iterator it = find(v.rbegin(), v.rend(), 1);
 	int result = distance(v.rbegin(), it);
 	return result;
 }
 
-//this function calculates the discrete function h(k_t)
-int function_h(int k, int l, int L) {
-	int h{ 0 };
-	if (k <= l - 1) {
-		h = k + 1;
-	}
-	else if (k >= l || k <= L) {
-		h = l + 1;
-	}
-	else {
-		h = l - k + L + 1;
-	}
-	return h;
-}
 
 
