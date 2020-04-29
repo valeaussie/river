@@ -37,7 +37,7 @@ int main() {
 	//DEFINITIONS
 
 	//number of particles
-	int n = 5;
+	int n = 1000;
 	//define the container for the samples 
 	vector < vector < vector < int > > > sample;
 	//define the container for the corrected samples
@@ -49,29 +49,22 @@ int main() {
 	//define the container for the resampling
 	vector < vector < vector < int > > > resampled(n, vector < vector < int > >((X.size()), vector < int >(N)));
 
-	cout << "real invasion" << endl;
+	//first observation
+	vector < vector < int > > samplem;
+	samplem.push_back(X[0]);
+
+	cout << "invasion" << endl;
 	print_matrix(X);
-	cout << "real observations " << endl;
+	cout << "observations" << endl;
 	print_matrix(Obs);
 
-	//simulate the first invaded cell for all particles
-	vector < vector < int > > samplem;
-	vector < int > first_sim_vect;
-	for (int j = 0; j < n; j++) {
-		vector < int > samplev(N, 0);
-		uniform_int_distribution<> unif(0, N - 1);
-		int first_simulated = unif(generator);
-		samplev[first_simulated] = 1;
-		samplem.push_back(samplev);
-		first_sim_vect.push_back(first_simulated);
-	}
 	//Sampling the invasion for every particle from a Bernoulli distribution
 	//with probability theta, filling the container "sample".
 	//Making a substitiution every time I have an observation in real life,
 	//filling the container for the new updated events "new_sample".
 	for (int j = 0; j < n; j++) {
 		vector < vector < int > > matrix_sample;
-		matrix_sample.push_back(samplem[j]);
+		matrix_sample.push_back(samplem[0]);
 		vector < vector < int > > matrix_new_sample;
 		matrix_new_sample.push_back(samplem[0]);
 		vector < int > temp2(N, 0);
@@ -81,7 +74,7 @@ int main() {
 			temp3[k] = matrix_new_sample[0][k];
 		}
 		for (size_t i = 1; i < X.size(); i++) {
-			if (first_sim_vect[j] != N-1) {
+			if (first_invaded != N-1) {
 				for (int k = 0; k < N - 1; k++) {
 					if (matrix_new_sample[i-1][k] == 1 && matrix_new_sample[i-1][k + 1] == 0) {
 						bernoulli_distribution berd(theta);
@@ -96,7 +89,7 @@ int main() {
 					}
 				}
 			}
-			if (first_sim_vect[j] != 0) {
+			if (first_invaded != 0) {
 				for (int k = 1; k < N; k++) {
 					if (matrix_new_sample[i-1][k] == 1 && matrix_new_sample[i-1][k - 1] == 0) {
 						bernoulli_distribution berd(theta);
@@ -134,7 +127,7 @@ int main() {
 	//simulate the observations
 	vector < int > vec_sim_trials;
 	for (int j = 0; j < n; j++) {
-		sam_obs[j][0][first_sim_vect[j]] = 1;
+		sam_obs[j][0][first_invaded] = 1;
 		//simulate all other observations making a correction each time
 		for (size_t k = 0; k < X.size(); k++) {
 			vector < int > corrected(N, 0);
@@ -157,7 +150,7 @@ int main() {
 			}
 			else {
 				int last_observed_left = left(corrected);
-				for (int i = last_observed_left; i >= l; i--) {
+				for (int i = last_observed_left - 1; i >= l; i--) {
 					bernoulli_distribution berd(phi);
 					int next_left = berd(generator);
 					if (next_left == 1) {
@@ -180,10 +173,6 @@ int main() {
 			}
 		}
 	}
-	cout << "first particle sample " << endl;
-	print_matrix(sample[0]);
-	cout << "first particle new sample " << endl;
-	print_matrix(new_sample[0]);
 
 	for (int k = 0; k < n; k++) {
 		resampled[k][0] = new_sample[k][0];
@@ -324,26 +313,52 @@ int main() {
 	}
 	for (int i = 0; i < X.size(); i++) {
 		for (int k = 0; k < n; k++) {
-			vector < double > pippo{ 1, 3, 5 };
 			discrete_distribution < int > discrete(weights[i].begin(), weights[i].end());
 			resampled[k][i] = new_sample[discrete(generator)][i];
 		}
 	}
 
-	cout << "resampled " << endl;
-	print_matrix(resampled[4]);
-
+	//calculate the expectations for each cell at each time
+	vector < vector < double > > expectations((X.size()), vector < double >(N, 0));
+	for (int k = 0; k < X.size(); k++) {
+		for (int i = 0; i < N; i++) {
+			if (Obs[k][i] == 0) {
+				for (int j = 0; j < n; j++) {
+					if (resampled[j][k][i] == 1) {
+						expectations[k][i] = expectations[k][i] + 1;
+					}
+				}
+				expectations[k][i] = expectations[k][i] / n;
+			}
+			else { expectations[k][i] = 1; }
+		}
+	}
+	print_matrix(expectations);
 
 	//Create a .csv file with the resampled particles
 	ofstream outFile3("./resampled.csv");
 	outFile3 << endl;
+	int half = round(X.size() / 2);
 	for (size_t k = 0; k < n; k++) {
-		for (size_t col = 0; col < N; col++) {
-			outFile3 << resampled[k][(X.size())-1][col] << ",";
+		for (size_t col = 0; col < N - 1; col++) {
+			outFile3 << resampled[k][half][col] << ",";
 		}
+		outFile3 << resampled[k][half][N-1];
 		outFile3 << endl;
 	}
 	outFile3.close();
+
+	//Create a .csv file with the resampled particles
+	ofstream outFile4("./expectations.csv");
+	outFile4 << endl;
+	for (size_t k = 0; k < X.size(); k++) {
+		for (size_t col = 0; col < N - 1; col++) {
+			outFile4 << expectations[k][col] << ",";
+		}
+		outFile4 << expectations[k][N - 1];
+		outFile4 << endl;
+	}
+	outFile4.close();
 	
 	return 0;
 

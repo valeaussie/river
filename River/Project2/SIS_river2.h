@@ -12,7 +12,7 @@ extern const int N;
 extern vector < vector < int > > X;
 extern vector < vector < int > > Obs;
 extern size_t trials;
-extern int first_observed;
+extern int first_invaded;
 
 int simprobe();
 

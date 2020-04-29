@@ -13,15 +13,18 @@ using namespace std;
 
 //DEFINITIONS
 
+//probability of invasion
 const double theta = 0.3;
-const double phi = 0.3;
-const int N = 10;
+//probability of observing
+const double phi = 0.8;
+const int N = 50;
 
 
 //this is the matrix of the invasion
 vector < vector < int > > X;
 //this is the matrix of the observations
 vector < vector < int > > Obs;
+int first_invaded{ 0 };
 
 //void print_matrix(vector < vector < int > > m);
 //void print_vector(vector < int > v);
@@ -47,7 +50,7 @@ int simprobe() {
 	//simulate the first invaded cell 
 	vector < int > x(N, 0);
 	int end_of_range = N - 1;
-	int first_invaded = rd() % end_of_range;
+	first_invaded = rd() % end_of_range;
 	x[first_invaded] = 1;
 	X.push_back(x);
 
@@ -125,7 +128,7 @@ int simprobe() {
 				int last_inv_left{ 0 };
 				if (obs[j] == 0 && obs[j + 1] == 1) {
 					last_inv_left = j + 1;
-					for (int j = last_inv_left; j >= left; j--) {
+					for (int j = last_inv_left - 1; j >= left; j--) {
 						bernoulli_distribution berd(phi);
 						int l = berd(generator);
 						if (l == 1) {
